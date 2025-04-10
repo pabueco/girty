@@ -1,3 +1,5 @@
+#!/usr/bin/env bun
+
 import { $ } from "bun";
 import chalk from "chalk";
 import { glob } from "glob";
@@ -18,8 +20,10 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 });
 
-const cwd = resolve(__dirname);
-const paths = [...(positionals ?? [cwd])].map((x) => resolve(x));
+const cwd = (await $`pwd`.text()).split("\n").filter(Boolean).pop();
+const paths = [...(positionals.length ? positionals : [cwd])].map((x) =>
+  resolve(x!)
+);
 
 const projects = new Set<string>();
 
