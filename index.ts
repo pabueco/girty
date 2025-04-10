@@ -62,12 +62,13 @@ console.log(
 );
 for (const project of uncommittedDirs) {
   console.log(
-    `- ${withoutBasePath(project.path)} (${
+    `- ${formatPath(project.path)} (${
       project.changes.length
     }) [${project.changes.map((x) => x.type).join("")}]`
   );
 }
 
-function withoutBasePath(p: string) {
+function formatPath(p: string) {
+  if (!values.short) return p
   return p.replace(trimEnd(fullPath, "/") + "/", "");
 }
