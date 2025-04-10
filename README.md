@@ -9,7 +9,7 @@ Find local git repos with uncommitted changes or unpushed commits.
 [Bun](https://bun.sh/) (`bunx`) is required to run this command.
 
 ```
-Usage: girty [options] [paths...]
+Usage: girty [paths...] [options]
 
 Arguments:
   paths           Paths to check (recursively)
@@ -28,5 +28,5 @@ Options:
 bunx girty ./projects
 
 # Find and check all git repos in the directories 'projects' and '../../more-projects' (recusively).
-bunx girty./projects ../../more-projects
+bunx girty ./projects ../../more-projects
 ```
