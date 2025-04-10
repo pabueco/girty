@@ -1,14 +1,16 @@
-import { $, Glob } from "bun";
-import { trimEnd } from "es-toolkit";
+import { $ } from "bun";
+import chalk from "chalk";
 import { glob } from "glob";
-import { log } from "node:console";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 const { values, positionals } = parseArgs({
   args: Bun.argv.slice(2),
   options: {
-    short: {
+    absolute: {
+      type: "boolean",
+    },
+    compact: {
       type: "boolean",
     },
   },
@@ -16,23 +18,34 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 });
 
-const path = positionals[0] ?? __dirname;
-const fullPath = resolve(path);
+const cwd = resolve(__dirname);
+const paths = [...(positionals ?? [cwd])].map((x) => resolve(x));
 
-const gitDirs = await glob("**/.git", {
-  ignore: "node_modules/**",
-  cwd: path,
-  absolute: true,
-});
+const projects = new Set<string>();
 
-console.log(`Checking ${gitDirs.length} projects in ${fullPath}`);
+for (const path of paths) {
+  const gitDirs = await glob("**/.git", {
+    ignore: "node_modules/**",
+    cwd: path,
+    absolute: true,
+  });
+
+  gitDirs.forEach((d) => projects.add(d));
+}
+
+console.log(
+  `Checking ${projects.size} projects in ${paths
+    .map((x) => formatPath(x))
+    .join(", ")}`
+);
 
 const uncommittedDirs: {
   path: string;
   changes: { type: string; path: string }[];
+  commits: number;
 }[] = [];
 
-for (const dir of gitDirs) {
+for (const dir of projects) {
   const baseDir = dirname(dir);
   const shell = $.cwd(baseDir);
 
@@ -48,27 +61,47 @@ for (const dir of gitDirs) {
         path: x[1]!,
       }));
 
-    if (paths.length) {
+    const unpushedCommitCount = Number(
+      await shell`git rev-list --count @{u}..HEAD`.text()
+    );
+
+    if (unpushedCommitCount > 0 || paths.length) {
       uncommittedDirs.push({
         path: baseDir,
         changes: paths,
+        commits: unpushedCommitCount,
       });
     }
   } catch (e) {}
 }
 
-console.log(
-  `Found ${uncommittedDirs.length} projects with uncommitted changes:`
-);
+console.log(`Found ${uncommittedDirs.length} dirty projects:`);
 for (const project of uncommittedDirs) {
-  console.log(
-    `- ${formatPath(project.path)} (${
-      project.changes.length
-    }) [${project.changes.map((x) => x.type).join("")}]`
-  );
+  if (values.compact) {
+    console.log(
+      `${chalk.bold(formatPath(project.path))}`,
+      `(${project.commits})`,
+      `[${project.changes.map((x) => x.type).join("")}]`
+    );
+  } else {
+    console.log("");
+    console.log(`${chalk.bold(formatPath(project.path))}`);
+    console.log(
+      chalk.italic(`  uncommitted changes:`),
+      `${chalk.bold(project.changes.length)}`,
+      `(${project.changes.map((x) => x.type).join("")})`
+    );
+    console.log(
+      chalk.italic(`  unpushed commits:`),
+      `${chalk.bold(project.commits)}`
+    );
+  }
 }
 
 function formatPath(p: string) {
-  if (!values.short) return p
-  return p.replace(trimEnd(fullPath, "/") + "/", "");
+  if (!values.absolute) {
+    const path = relative(cwd, p);
+    return path.length ? path : `./ (${basename(p)})`;
+  }
+  return p;
 }
