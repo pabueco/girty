@@ -1,4 +1,4 @@
-# girty
+# girty!
 
 To install dependencies:
 
