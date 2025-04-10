@@ -1,8 +1,11 @@
 {
-  "name": "find-uncommitted",
+  "name": "girty",
   "module": "index.ts",
   "type": "module",
   "private": true,
+  "bin": {
+    "girty": "index.ts"
+  },
   "scripts": {
     "dev": "bun run --watch index.ts"
   },
