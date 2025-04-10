@@ -1,4 +1,4 @@
-# find-uncommitted
+# girty
 
 To install dependencies:
 
