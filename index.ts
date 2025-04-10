@@ -20,7 +20,7 @@ const { values, positionals } = parseArgs({
   allowPositionals: true,
 });
 
-const cwd = (await $`pwd`.text()).split("\n").filter(Boolean).pop();
+const cwd = (await $`pwd`.text()).split("\n").filter(Boolean).pop() as string;
 const paths = [...(positionals.length ? positionals : [cwd])].map((x) =>
   resolve(x!)
 );
@@ -105,7 +105,11 @@ for (const project of uncommittedDirs) {
 function formatPath(p: string) {
   if (!values.absolute) {
     const path = relative(cwd, p);
-    return path.length ? path : `./ (${basename(p)})`;
+    return path.length
+      ? path.startsWith(".")
+        ? path
+        : `./${path}`
+      : `./ (${basename(p)})`;
   }
   return p;
 }
