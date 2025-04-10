@@ -2,10 +2,17 @@
   "name": "girty",
   "module": "index.ts",
   "type": "module",
-  "private": true,
+  "private": false,
+  "author": "@pabueco",
+  "version": "0.0.1",
   "bin": {
     "girty": "index.ts"
   },
+  "files": [
+    "package.json",
+    "bun.lock",
+    "index.ts"
+  ],
   "scripts": {
     "dev": "bun run --watch index.ts"
   },
@@ -16,7 +23,9 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@commander-js/extra-typings": "^13.1.0",
     "chalk": "^5.4.1",
+    "commander": "^13.1.0",
     "es-toolkit": "^1.34.1",
     "glob": "^11.0.1"
   }

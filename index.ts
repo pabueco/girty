@@ -3,31 +3,34 @@
 import { $ } from "bun";
 import chalk from "chalk";
 import { glob } from "glob";
+import { stat } from "node:fs/promises";
 import { basename, dirname, relative, resolve } from "node:path";
-import { parseArgs } from "node:util";
+import { Command } from "@commander-js/extra-typings";
+import pkg from "./package.json" assert { type: "json" };
 
-const { values, positionals } = parseArgs({
-  args: Bun.argv.slice(2),
-  options: {
-    absolute: {
-      type: "boolean",
-    },
-    compact: {
-      type: "boolean",
-    },
-  },
-  strict: true,
-  allowPositionals: true,
-});
+const program = new Command()
+  .name(pkg.name)
+  .version(pkg.version)
+  .option("-a, --absolute", "Display absolute paths")
+  .option("-c, --compact", "Compact output")
+  .argument("[paths...]", "Directories to check (recursively)")
+  .parse(process.argv);
+
+const options = program.opts();
+const positionals = program.args;
 
 const cwd = (await $`pwd`.text()).split("\n").filter(Boolean).pop() as string;
 const paths = [...(positionals.length ? positionals : [cwd])].map((x) =>
   resolve(x!)
 );
-
 const projects = new Set<string>();
 
 for (const path of paths) {
+  if (!(await isDirectory(path))) {
+    console.error(`\`${path}\` is not a directory`);
+    process.exit(1);
+  }
+
   const gitDirs = await glob("**/.git", {
     ignore: "node_modules/**",
     cwd: path,
@@ -81,7 +84,7 @@ for (const dir of projects) {
 
 console.log(`Found ${uncommittedDirs.length} dirty projects:`);
 for (const project of uncommittedDirs) {
-  if (values.compact) {
+  if (options.compact) {
     console.log(
       `${chalk.bold(formatPath(project.path))}`,
       `(${project.commits})`,
@@ -103,7 +106,7 @@ for (const project of uncommittedDirs) {
 }
 
 function formatPath(p: string) {
-  if (!values.absolute) {
+  if (!options.absolute) {
     const path = relative(cwd, p);
     return path.length
       ? path.startsWith(".")
@@ -112,4 +115,13 @@ function formatPath(p: string) {
       : `./ (${basename(p)})`;
   }
   return p;
+}
+
+async function isDirectory(path: string): Promise<boolean> {
+  try {
+    const stats = await stat(path);
+    return stats.isDirectory();
+  } catch (err) {
+    return false;
+  }
 }
