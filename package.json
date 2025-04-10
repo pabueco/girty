@@ -4,7 +4,7 @@
   "type": "module",
   "private": false,
   "author": "@pabueco",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "bin": {
     "girty": "index.ts"
   },
