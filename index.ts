@@ -8,6 +8,8 @@ import { basename, dirname, relative, resolve } from "node:path";
 import { Command } from "@commander-js/extra-typings";
 import pkg from "./package.json" assert { type: "json" };
 
+const SKIP_FETCH = true;
+
 const program = new Command()
   .name(pkg.name)
   .version(pkg.version)
@@ -46,17 +48,28 @@ console.log(
     .join(", ")}`
 );
 
-const uncommittedDirs: {
+type Dir = {
   path: string;
   changes: { type: string; path: string }[];
-  commits: number;
-}[] = [];
+  branches: {
+    name: string;
+    tracked: boolean;
+    ahead: number;
+    commits: string[];
+  }[];
+};
+
+const dirtyDirs: Dir[] = [];
 
 for (const dir of projects) {
   const baseDir = dirname(dir);
   const shell = $.cwd(baseDir);
 
   try {
+    if (!SKIP_FETCH) {
+      await shell`git fetch --all --quiet`;
+    }
+
     const lines = await shell`git status --porcelain`.text();
     const paths = lines
       .split("\n")
@@ -68,40 +81,114 @@ for (const dir of projects) {
         path: x[1]!,
       }));
 
-    const unpushedCommitCount = Number(
-      await shell`git rev-list --count @{u}..HEAD`.text()
-    );
+    const dir: Dir = {
+      path: baseDir,
+      changes: paths,
+      branches: [],
+    };
 
-    if (unpushedCommitCount > 0 || paths.length) {
-      uncommittedDirs.push({
-        path: baseDir,
-        changes: paths,
-        commits: unpushedCommitCount,
-      });
+    const branchesState =
+      await shell`git for-each-ref --format='%(refname:short) %(upstream:short) %(upstream:track)' refs/heads/`.text();
+
+    for (const line of branchesState
+      .split("\n")
+      .map((x) => x.trim())
+      .filter(Boolean)) {
+      const matched = line.match(
+        /^(?<name>.+?)(\s+(?<remote>.+?))?(\s+(?<tracking>.+))?$/
+      );
+
+      const { name, remote, tracking } = matched?.groups ?? {};
+      if (!name) continue;
+
+      const ahead = parseInt(tracking?.match(/ahead (\d+)/)?.[1] ?? "") || 0;
+
+      const branch: Dir["branches"][number] = {
+        name,
+        tracked: !!remote,
+        ahead,
+        commits: [],
+      };
+
+      if (!branch.tracked || branch.ahead > 0) {
+        // Get commit messages for unpushed commits
+        if (branch.ahead > 0) {
+          const commits =
+            await shell`git log ${remote}..HEAD --pretty=format:"%s (%ad)" --date=short`.text();
+          branch.commits = commits
+            .split("\n")
+            .map((c) => c.trim())
+            .filter(Boolean);
+        }
+
+        dir.branches.push(branch);
+      }
     }
-  } catch (e) {}
+
+    if (dir.changes.length || dir.branches.length) {
+      dirtyDirs.push(dir);
+    }
+  } catch (e) {
+    console.error(
+      `Error checking ${chalk.bold(formatPath(baseDir))}:`,
+      e instanceof Error ? e.message : String(e)
+    );
+    continue;
+  }
 }
 
-console.log(`Found ${uncommittedDirs.length} dirty projects:`);
-for (const project of uncommittedDirs) {
+console.log(`Found ${dirtyDirs.length} dirty project(s):`);
+for (const project of dirtyDirs) {
+  const dirtyBranches = project.branches.filter((b) => b.ahead > 0);
+  const untrackedBranches = project.branches.filter((b) => !b.tracked);
+
   if (options.compact) {
     console.log(
       `${chalk.bold(formatPath(project.path))}`,
-      `(${project.commits})`,
+      `(${dirtyBranches.map((b) => `${b.name}: ${b.ahead}`).join(", ")})`,
       `[${project.changes.map((x) => x.type).join("")}]`
     );
   } else {
     console.log("");
     console.log(`${chalk.bold(formatPath(project.path))}`);
-    console.log(
-      chalk.italic(`  uncommitted changes:`),
-      `${chalk.bold(project.changes.length)}`,
-      `(${project.changes.map((x) => x.type).join("")})`
+
+    if (project.changes.length) {
+      console.log(
+        chalk.italic(`  uncommitted changes`),
+        `(${project.changes.length})`
+      );
+      for (const change of project.changes) {
+        console.log(`    ${chalk.bold(change.type)} ${change.path}`);
+      }
+    }
+
+    const dirtyTrackedBranches = project.branches.filter(
+      (b) => b.tracked && b.ahead > 0
     );
-    console.log(
-      chalk.italic(`  unpushed commits:`),
-      `${chalk.bold(project.commits)}`
-    );
+    if (dirtyTrackedBranches.length) {
+      console.log(
+        chalk.italic(`  unpushed commits`),
+        `(${dirtyTrackedBranches.length})`
+      );
+      for (const branch of dirtyTrackedBranches) {
+        console.log(`    ${chalk.bold(branch.name)} (${branch.ahead})`);
+        for (const commit of branch.commits) {
+          console.log(`      ${chalk.dim(commit)}`);
+        }
+      }
+    }
+    if (untrackedBranches.length) {
+      console.log(
+        chalk.italic(`  untracked branches`),
+        `(${untrackedBranches.length})`
+      );
+      for (const branch of untrackedBranches) {
+        console.log(`    ${chalk.bold(branch.name)}`);
+        for (const commit of branch.commits) {
+          console.log(`      ${chalk.dim(commit)}`);
+        }
+      }
+    }
   }
 }
 
