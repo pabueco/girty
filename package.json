@@ -15,7 +15,8 @@
   "files": [
     "package.json",
     "bun.lock",
-    "index.ts"
+    "index.ts",
+    "lib"
   ],
   "scripts": {
     "dev": "bun run --watch index.ts",
