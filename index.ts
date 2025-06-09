@@ -58,7 +58,7 @@ await tasks([
         )
       ).filter(Boolean) as AnalyzedRepo[];
 
-      return `${chalk.bold(dirtyRepos.length)} repos are dirty!`;
+      return `${chalk.bold(dirtyRepos.length)} repos are dirty:`;
     },
   },
 ]);

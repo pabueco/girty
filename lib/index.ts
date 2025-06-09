@@ -7,6 +7,7 @@ import { log } from "@clack/prompts";
 
 export type AnalyzedRepo = {
   path: string;
+  remote: boolean;
   changes: { type: string; path: string }[];
   branches: {
     name: string;
@@ -23,10 +24,14 @@ export async function analyseDirectory(
   const shouldFetch = options.fetch ?? false;
 
   const baseDir = dirname(dir);
-  const shell = $.cwd(baseDir);
+
+  const shell = new $.Shell();
+  shell.cwd(baseDir);
 
   try {
-    if (shouldFetch) {
+    const hasRemote = !!(await shell`git remote`.text().then((x) => x.trim()));
+
+    if (hasRemote && shouldFetch) {
       await shell`git fetch --all --quiet`;
     }
 
@@ -41,8 +46,9 @@ export async function analyseDirectory(
         path: x[1]!,
       }));
 
-    const dir: AnalyzedRepo = {
+    const repo: AnalyzedRepo = {
       path: baseDir,
+      remote: hasRemote,
       changes: paths,
       branches: [],
     };
@@ -81,12 +87,12 @@ export async function analyseDirectory(
             .filter(Boolean);
         }
 
-        dir.branches.push(branch);
+        repo.branches.push(branch);
       }
     }
 
-    if (dir.changes.length || dir.branches.length) {
-      return dir;
+    if (!repo.remote || repo.changes.length || repo.branches.length) {
+      return repo;
     } else {
       return null;
     }
@@ -110,18 +116,31 @@ export async function printRepoState(
 
   if (options.compact) {
     console.log(
-      `${chalk.bold(formatPath(repo.path))}`,
-      `(${dirtyBranches.map((b) => `${b.name}: ${b.ahead}`).join(", ")})`,
-      `[${repo.changes.map((x) => x.type).join("")}]`
+      ...[
+        `${chalk.bold(formatPath(repo.path))}:`,
+        !repo.remote && `no remote`,
+        dirtyBranches.length &&
+          `(${dirtyBranches
+            .map((b) => `${b.name}: ${b.ahead} ahead`)
+            .join(", ")})`,
+        untrackedBranches.length &&
+          `(${untrackedBranches
+            .map((b) => `${b.name}: untracked`)
+            .join(", ")})`,
+        repo.changes.length && `[${repo.changes.map((x) => x.type).join("")}]`,
+      ].filter(Boolean)
     );
   } else {
     console.log("");
     console.log(`${chalk.bold(formatPath(repo.path))}`);
 
+    if (!repo.remote) {
+      console.log(chalk.italic(`  no remote`));
+    }
+
     if (repo.changes.length) {
       console.log(
-        chalk.italic(`  uncommitted changes`),
-        `(${repo.changes.length})`
+        chalk.italic(`  uncommitted changes (${repo.changes.length})`)
       );
       for (const change of repo.changes) {
         console.log(`    ${chalk.bold(change.type)} ${change.path}`);
@@ -133,8 +152,7 @@ export async function printRepoState(
     );
     if (dirtyTrackedBranches.length) {
       console.log(
-        chalk.italic(`  unpushed commits`),
-        `(${dirtyTrackedBranches.length})`
+        chalk.italic(`  unpushed commits (${dirtyTrackedBranches.length})`)
       );
       for (const branch of dirtyTrackedBranches) {
         console.log(`    ${chalk.bold(branch.name)} (${branch.ahead})`);
@@ -145,8 +163,7 @@ export async function printRepoState(
     }
     if (untrackedBranches.length) {
       console.log(
-        chalk.italic(`  untracked branches`),
-        `(${untrackedBranches.length})`
+        chalk.italic(`  untracked branches (${untrackedBranches.length})`)
       );
       for (const branch of untrackedBranches) {
         console.log(`    ${chalk.bold(branch.name)}`);
