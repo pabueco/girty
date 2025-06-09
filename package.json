@@ -14,7 +14,8 @@
     "index.ts"
   ],
   "scripts": {
-    "dev": "bun run --watch index.ts"
+    "dev": "bun run --watch index.ts",
+    "compile": "bun build ./index.ts --compile --outfile dist/girty --minify"
   },
   "devDependencies": {
     "@types/bun": "latest"
@@ -23,6 +24,7 @@
     "typescript": "^5"
   },
   "dependencies": {
+    "@clack/prompts": "^0.11.0",
     "@commander-js/extra-typings": "^13.1.0",
     "chalk": "^5.4.1",
     "commander": "^13.1.0",
