@@ -5,6 +5,10 @@
   "private": false,
   "author": "@pabueco",
   "version": "0.0.3",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pabueco/girty.git"
+  },
   "bin": {
     "girty": "index.ts"
   },
