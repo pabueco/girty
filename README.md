@@ -37,6 +37,10 @@ bunx girty ./projects
 
 # Find and check all git repos in the directories 'projects' and '../../more-projects' (recusively).
 bunx girty ./projects ../../more-projects
+
+# Or install it globally
+bun --global add girty
+girty ./projects
 ```
 
 The output will look something like this:
